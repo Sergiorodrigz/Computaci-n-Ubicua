@@ -1,0 +1,392 @@
+/* Reset y configuración base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: white;
+}
+
+/* Encabezado */
+.header {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.header p {
+    font-size: 1.2em;
+    opacity: 0.9;
+}
+
+/* Contenedor principal */
+.container {
+    display: flex;
+    gap: 20px;
+    width: 95%;
+    max-width: 1400px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* Secciones */
+.camera-section,
+.info-section {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.camera-section {
+    flex: 1;
+    min-width: 600px;
+}
+
+.info-section {
+    flex: 1;
+    min-width: 400px;
+}
+
+/* Video y overlays */
+.camera-container {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+#videoFeed {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.add-face-section {
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 15px;
+  text-align: center;
+}
+.add-face-section input {
+  padding: 8px;
+  margin: 5px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(255,255,255,0.3);
+  color: white;
+}
+#appContainer {
+  transition: background-color 0.5s;
+  background-color: #5e5ef5; /* tema por defecto */
+}
+
+/* Cuando esté reconocido */
+#appContainer.recognized-theme {
+  background-color: #2ecc71; /* verde */
+}
+
+/* Cuando NO esté reconocido */
+#appContainer.unknown-theme {
+  background-color: #e74c3c; /* rojo */
+}
+.user-status {
+  padding: 10px 15px;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-size: 16px;
+  border-radius: 15px;
+  margin-bottom: 10px;
+  text-align: center;
+  transition: all 0.3s;
+}
+.user-status.recognized {
+  background: rgba(76,175,80,0.7);
+}
+.user-status.unknown {
+  background: rgba(255, 107, 107, 0.7);
+}
+
+/* Cuadro de detección */
+.artwork-box {
+    position: absolute;
+    border: 3px solid #ff6b6b;
+    background: rgba(255, 107, 107, 0.2);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.artwork-box.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.artwork-box:hover {
+    border-color: #ff5252;
+    background: rgba(255, 107, 107, 0.3);
+}
+
+.artwork-label {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    background: rgba(255, 107, 107, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Controles */
+.controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(45deg, #4ecdc4, #44a08d);
+    color: white;
+}
+
+.btn-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
+}
+
+.btn-toggle {
+    background: linear-gradient(45deg, #ffd93d, #ff6b6b);
+    color: white;
+}
+
+.btn-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 217, 61, 0.4);
+}
+
+.btn-toggle.active {
+    background: linear-gradient(45deg, #4caf50, #45a049);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Estado */
+.status {
+    text-align: center;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+.status.success {
+    background: rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.status.error {
+    background: rgba(244, 67, 54, 0.3);
+    border: 1px solid rgba(244, 67, 54, 0.5);
+}
+
+.status.processing {
+    background: rgba(255, 193, 7, 0.3);
+    border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+/* Información de la obra */
+.artwork-info {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #ff6b6b;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+}
+
+.artwork-info.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.artwork-info h3 {
+    color: #ff6b6b;
+    margin-bottom: 10px;
+    font-size: 1.3em;
+}
+
+.artwork-info p {
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+.artwork-info strong {
+    color: #ffd700;
+}
+
+/* Chat */
+.chat-section {
+    margin-top: 20px;
+    border-top: 2px solid rgba(255, 255, 255, 0.2);
+    padding-top: 20px;
+}
+
+.chat-input {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 16px;
+}
+
+.chat-input input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.chat-messages {
+    max-height: 300px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.chat-message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 10px;
+    line-height: 1.5;
+}
+
+.chat-message.user {
+    background: rgba(255, 107, 107, 0.3);
+    text-align: right;
+}
+
+.chat-message.bot {
+    background: rgba(78, 205, 196, 0.3);
+}
+
+/* Carga */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Mensaje cámara no disponible */
+.no-camera {
+    text-align: center;
+    padding: 50px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Indicador de detección */
+.detection-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.detection-indicator.active {
+    background: rgba(76, 175, 80, 0.8);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    
+    .camera-section, .info-section {
+        min-width: auto;
+    }
+    
+    .header h1 {
+        font-size: 2em;
+    }
+}

@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de Obras de Arte</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="appContainer">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🎨 Detector de Obras de Arte</h1>
+            <p>Apunta tu cámara hacia una obra de arte y descubre su historia</p>
+        </div>
+
+        <div class="container">
+            <!-- SECCIÓN CÁMARA + RECONOCIMIENTO -->
+            <div class="camera-section">
+                <div class="camera-container">
+
+                    <!-- ESTADO DE USUARIO -->
+                    <div id="userStatus" class="user-status">Reconociendo usuario...</div>
+
+                    <!-- IMAGEN DE VÍDEO SIN SRC INICIAL -->
+                    <img id="feedImg" src="http://localhost:8000/video_feed" alt="Vista previa de la cámara" />
+
+                    <!-- INDICADOR DE DETECCIÓN -->
+                    <div class="detection-indicator" id="detectionIndicator">
+                        Detección: activa
+                    </div>
+
+                    <!-- MENSAJE SI NO HAY CÁMARA -->
+                    <div class="no-camera" id="noCamera" style="display: none;">
+                        <h3>📷 Cámara no disponible</h3>
+                        <p>Por favor, permite el acceso a la cámara para usar esta aplicación</p>
+                    </div>
+
+                </div>
+                <div id="status" class="status" style="display: none;"></div>
+            </div>
+
+           
+
+            <!-- SECCIÓN DE INFORMACIÓN DE OBRAS -->
+            <div class="info-section">
+                <h2>📋 Información de Obras Detectadas</h2>
+                <div id="artworksList">
+                    <p style="text-align: center; opacity: 0.7; margin-top: 50px;">
+                        Inicia la detección continua o captura una imagen para ver información sobre las obras de arte
+                    </p>
+                </div>
+
+                <!-- CHAT -->
+                <div class="chat-section">
+                    <h3>💬 Chat sobre Arte</h3>
+
+                    <!-- Chat de texto -->
+                    <div class="chat-input">
+                        <input type="text" id="chatInput" placeholder="Pregunta sobre las obras detectadas..." />
+                        <button id="sendChatBtn" class="btn btn-secondary">Enviar</button>
+                    </div>
+
+                    <!-- Chat de voz continua -->
+                    <div class="voice-chat-section">
+                        <h4>🎤 Asistente de Voz</h4>
+                        <div class="voice-controls">
+                            <button id="toggleVoiceBtn" class="btn btn-voice">
+                                <span class="voice-icon">🎤</span>
+                                Desactivar Asistente de Voz
+                            </button>
+                            <div class="voice-indicators">
+                                <div id="listeningIndicator" class="listening-indicator" style="display: none;">
+                                    <div class="pulse"></div>
+                                    <span>Escuchando...</span>
+                                </div>
+                                <div id="speakingIndicator" class="speaking-indicator" style="display: none;">
+                                    <div class="wave"></div>
+                                    <span>Hablando...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="voiceStatus" class="voice-status" style="display: none;"></div>
+                        <div id="transcriptionDisplay" class="transcription-display" style="display: none;"></div>
+                    </div>
+
+                    <div class="chat-messages" id="chatMessages"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio element for playing responses -->
+    <audio id="responseAudio" preload="none"></audio>
+
+    <script>
+        // Variables globales
+        let feedImg = document.getElementById('feedImg');
+        let status = document.getElementById('status');
+        let artworksList = document.getElementById('artworksList');
+        let chatInput = document.getElementById('chatInput');
+        let sendChatBtn = document.getElementById('sendChatBtn');
+        let chatMessages = document.getElementById('chatMessages');
+        let noCamera = document.getElementById('noCamera');
+        let detectionIndicator = document.getElementById('detectionIndicator');
+
+        // Variables para chat de voz continua
+        let toggleVoiceBtn = document.getElementById('toggleVoiceBtn');
+        let listeningIndicator = document.getElementById('listeningIndicator');
+        let speakingIndicator = document.getElementById('speakingIndicator');
+        let voiceStatus = document.getElementById('voiceStatus');
+        let transcriptionDisplay = document.getElementById('transcriptionDisplay');
+        let responseAudio = document.getElementById('responseAudio');
+        let faceInterval, artInterval;
+        let currentArtworks = [];
+        let realtimeDetection = true;
+        let detectionInterval = null;
+        let isProcessing = false;
+        let userRecognized = false;
+        let isRecognizing = false;
+        let isDetectingArt = false;
+
+
+        // Variables para voz continua
+        let recognition = null;
+        let voiceAssistantActive = true;
+        let isListening = false;
+        let isSpeaking = false;
+        let silenceTimer = null;
+        let processingVoice = false;
+
+        const BACKEND_URL = 'http://localhost:8000';
+        const SILENCE_THRESHOLD = 2000; // 2 segundos de silencio
+
+
+
+        // Función para mostrar estado de voz
+        function showVoiceStatus(message, type = 'processing') {
+            voiceStatus.style.display = 'block';
+            voiceStatus.textContent = message;
+            voiceStatus.className = `voice-status ${type}`;
+        }
+
+        function hideVoiceStatus() {
+            voiceStatus.style.display = 'none';
+        }
+
+
+
+        async function addNewUser() {
+            const nameInput = document.getElementById('newUserName');
+            const imageInput = document.getElementById('newUserImage');
+            const statusDiv = document.getElementById('addUserStatus');
+
+            if (!nameInput.value || !imageInput.files[0]) {
+                statusDiv.textContent = "Por favor introduce nombre y selecciona imagen.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', imageInput.files[0]);
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/add_user/${nameInput.value}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    statusDiv.textContent = "Usuario añadido exitosamente.";
+                    statusDiv.style.color = "lightgreen";
+                } else {
+                    const data = await response.json();
+                    statusDiv.textContent = `Error: ${data.detail}`;
+                    statusDiv.style.color = "red";
+                }
+
+            } catch (err) {
+                statusDiv.textContent = "Ocurrió un error al añadir el usuario.";
+                statusDiv.style.color = "red";
+                console.error(err);
+            }
+        }
+        // ––– FACE-LOGIN –––
+        async function tryLogin() {
+            if (isRecognizing || userRecognized) return;
+            isRecognizing = true;
+            try {
+                const res = await fetch(`${BACKEND_URL}/face_recognition_status`);
+                if (res.ok) {
+                    const { users } = await res.json();
+                    const known = users.length && !users.includes("Desconocido");
+                    if (known) {
+                        userRecognized = true;
+                        // UI facial
+                        document.getElementById('userStatus')
+                            .className = 'user-status recognized';
+                        document.getElementById('userStatus')
+                            .textContent = `👤 Usuario: ${users.join(', ')}`;
+
+                        // Cambia tema global
+                        document.getElementById('appContainer')
+                            .classList.add('recognized-theme');
+
+                        // ¡Arranca detección de obras!
+                        startArtDetection();
+                        clearInterval(faceInterval);  // Detén este bucle
+                    }
+                }
+            } catch (e) {
+                console.warn('Login facial fallido:', e);
+            } finally {
+                isRecognizing = false;
+            }
+        }
+
+        // ––– ART-DETECTION –––
+        async function detectArtworks() {
+            if (isDetectingArt) return;
+            isDetectingArt = true;
+            try {
+                const res = await fetch(`${BACKEND_URL}/artworks_status`);
+                if (!res.ok) return;
+                const { artworks } = await res.json();
+                const list = document.getElementById('artworksList');
+                list.innerHTML = '';
+                if (!artworks.length) {
+                    list.innerHTML = `<p style="text-align:center;opacity:.7;margin-top:50px;">
+                          No hay obras detectadas.
+                        </p>`;
+                    document.getElementById('detectionIndicator').textContent = 'Detección: inactiva';
+                } else {
+                    document.getElementById('detectionIndicator').textContent = 'Detección: activa';
+                    artworks.forEach((a, index) => {
+                        const card = document.createElement('div');
+                        card.className = 'artwork-info';
+                        card.innerHTML = `
+    <h3>🖼️ ${a.title}</h3>
+    <p><strong>Autor:</strong> ${a.author || 'Desconocido'}</p>
+    <p><strong>Descripción:</strong> ${a.description || 'No disponible'}</p>
+  `;
+                        list.appendChild(card);
+                        setTimeout(() => card.classList.add('visible'), index * 100);
+
+                    });
+                }
+            } catch (e) {
+                console.warn('Error detectando obras:', e);
+            } finally {
+                isDetectingArt = false;
+            }
+        }
+
+        function startArtDetection() {
+            detectArtworks();                       // llamada rápida
+            artInterval = setInterval(detectArtworks, 10000);
+        }
+
+        // Mostrar resultados
+        function displayResults(artworks) {
+            if (artworks.length === 0) {
+                artworksList.innerHTML = '<p style="text-align: center; opacity: 0.7;">No se detectaron obras de arte en la imagen</p>';
+                return;
+            }
+
+            artworksList.innerHTML = artworks.map((artwork, index) => `
+                <div class="artwork-info" style="animation-delay: ${index * 0.1}s;">
+                    <h3>🖼️ Obra ${index + 1}</h3>
+                    <p><strong>Título:</strong> ${artwork.title || 'Desconocido'}</p>
+                    <p><strong>Autor:</strong> ${artwork.author || 'Desconocido'}</p>
+                    <p><strong>Descripción:</strong> ${artwork.description || 'No disponible'}</p>
+                </div>
+            `).join('');
+
+            setTimeout(() => {
+                document.querySelectorAll('.artwork-info').forEach(info => {
+                    info.classList.add('visible');
+                });
+            }, 100);
+        }
+
+
+        // Chat de texto
+        async function sendChatMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            addChatMessage(message, 'user');
+            chatInput.value = '';
+
+            const loadingDiv = document.createElement('div');
+            loadingDiv.innerHTML = '<span class="loading"></span> Pensando...';
+            loadingDiv.className = 'chat-message bot';
+            chatMessages.appendChild(loadingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const context = currentArtworks.map(a =>
+                    `Título: ${a.title}, Autor: ${a.author}, Descripción: ${a.description}`
+                ).join('; ');
+
+                const response = await fetch(`${BACKEND_URL}/chat/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message,
+                        context,
+                        detected_artworks: currentArtworks
+                    })
+                });
+
+                const data = await response.json();
+
+                chatMessages.removeChild(loadingDiv);
+                addChatMessage(data.response, 'bot');
+
+            } catch (error) {
+                console.error('Error en chat:', error);
+                chatMessages.removeChild(loadingDiv);
+                addChatMessage('Lo siento, ocurrió un error al procesar tu pregunta.', 'bot');
+            }
+        }
+
+        function addChatMessage(message, sender) {
+            const div = document.createElement('div');
+            div.className = `chat-message ${sender}`;
+            div.textContent = message;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // ===== FUNCIONES DE VOZ CONTINUA =====
+
+        // Inicializar reconocimiento de voz
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.error('Speech Recognition no soportado');
+                showVoiceStatus('Reconocimiento de voz no soportado en este navegador', 'error');
+                return false;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'es-ES';
+
+            let finalTranscript = '';
+            let interimTranscript = '';
+
+            recognition.onstart = () => {
+                console.log('Reconocimiento de voz iniciado');
+                isListening = true;
+                showListeningIndicator();
+            };
+
+            recognition.onresult = (event) => {
+                finalTranscript = '';
+                interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Mostrar transcripción en tiempo real
+                if (finalTranscript || interimTranscript) {
+                    updateTranscriptionDisplay(finalTranscript + interimTranscript);
+                }
+
+                // Procesar cuando tengamos una frase completa
+                if (finalTranscript.trim() && !processingVoice) {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = setTimeout(() => {
+                        processVoiceInput(finalTranscript.trim());
+                    }, SILENCE_THRESHOLD);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Error en reconocimiento de voz:', event.error);
+                if (event.error === 'no-speech') {
+                    // Reiniciar automáticamente si no hay habla
+                    restartListening();
+                } else if (event.error === 'not-allowed') {
+                    showVoiceStatus('Permiso de micrófono denegado', 'error');
+                    stopVoiceAssistant();
+                } else {
+                    showVoiceStatus(`Error: ${event.error}`, 'error');
+                }
+            };
+
+            recognition.onend = () => {
+                console.log('Reconocimiento de voz terminado');
+                isListening = false;
+                hideListeningIndicator();
+
+                // Forzar reinicio continuo si el asistente está activo y no está procesando voz
+                if (voiceAssistantActive && !processingVoice) {
+                    setTimeout(() => {
+                        recognition.start(); // <-- aquí reinicia inmediatamente
+                    }, 500); // pequeña pausa para evitar errores
+                }
+            };
+
+            return true;
+        }
+
+        // Funciones de control de voz
+        function toggleVoiceAssistant() {
+            if (voiceAssistantActive) {
+                stopVoiceAssistant();
+            } else {
+                startVoiceAssistant();
+            }
+        }
+
+        function startVoiceAssistant() {
+            if (!recognition && !initSpeechRecognition()) {
+                return;
+            }
+
+            voiceAssistantActive = true;
+            toggleVoiceBtn.textContent = '🔇 Desactivar Asistente';
+            toggleVoiceBtn.classList.add('active');
+
+            // Pedir permisos primero
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(() => {
+                    startListening();
+                    showVoiceStatus('Asistente de voz activado', 'success');
+                    setTimeout(() => {
+                        hideVoiceStatus();
+                    }, 2000);
+                })
+                .catch((error) => {
+                    console.error('Error al acceder al micrófono:', error);
+                    showVoiceStatus('Error al acceder al micrófono', 'error');
+                    stopVoiceAssistant();
+                });
+        }
+
+        function stopVoiceAssistant() {
+            voiceAssistantActive = false;
+            toggleVoiceBtn.textContent = '🎤 Activar Asistente';
+            toggleVoiceBtn.classList.remove('active');
+
+            stopListening();
+            hideListeningIndicator();
+            hideSpeakingIndicator();
+            hideTranscriptionDisplay();
+
+            if (silenceTimer) {
+                clearTimeout(silenceTimer);
+                silenceTimer = null;
+            }
+
+            showVoiceStatus('Asistente de voz desactivado', 'success');
+            setTimeout(() => {
+                hideVoiceStatus();
+            }, 2000);
+        }
+
+        function startListening() {
+            if (recognition && !isListening && !processingVoice) {
+                try {
+                    recognition.start();
+                } catch (error) {
+                    console.error('Error al iniciar reconocimiento:', error);
+                    if (error.name === 'InvalidStateError') {
+                        // Ya está iniciado, no hacer nada
+                        return;
+                    }
+                    restartListening();
+                }
+            }
+        }
+
+        function stopListening() {
+            if (recognition && isListening) {
+                try {
+                    recognition.stop();
+                } catch (error) {
+                    console.error('Error al detener reconocimiento:', error);
+                }
+            }
+        }
+
+        function restartListening() {
+            if (voiceAssistantActive) {
+                stopListening();
+                setTimeout(() => {
+                    startListening();
+                }, 500);
+            }
+        }
+
+        // Procesar entrada de voz
+        async function processVoiceInput(transcript) {
+            if (processingVoice) return;
+
+            processingVoice = true;
+            console.log('Procesando:', transcript);
+            hideListeningIndicator();
+
+            try {
+                showTranscriptionDisplay(`"${transcript}"`);
+                addChatMessage(transcript, 'user');
+                showVoiceStatus('Procesando tu pregunta...', 'processing');
+
+                const context = currentArtworks.map(a =>
+                    `Título: ${a.title}, Autor: ${a.author}, Descripción: ${a.description}`
+                ).join('; ');
+
+                const response = await fetch(`${BACKEND_URL}/chat/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: transcript,
+                        context,
+                        detected_artworks: currentArtworks
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+
+                const data = await response.json();
+                addChatMessage(data.response, 'bot');
+                await speakResponse(data.response);
+
+            } catch (error) {
+                console.error('Error procesando voz:', error);
+                const errorMessage = 'Lo siento, ocurrió un error al procesar tu pregunta.';
+                addChatMessage(errorMessage, 'bot');
+                await speakResponse(errorMessage);
+            } finally {
+                hideVoiceStatus();
+                processingVoice = false;
+
+            }
+        }
+
+        // Reproducir respuesta de voz
+        async function speakResponse(text) {
+            try {
+                showSpeakingIndicator();
+
+                // Usar API de text-to-speech del backend
+                const response = await fetch(`${BACKEND_URL}/text-to-speech/?text=${encodeURIComponent(text)}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    responseAudio.src = audioUrl;
+
+                    return new Promise((resolve) => {
+                        responseAudio.onended = () => {
+                            hideSpeakingIndicator();
+                            URL.revokeObjectURL(audioUrl);
+                            processingVoice = false; // Marcar como no procesando
+                            // Reiniciar escucha automáticamente después de hablar
+                            setTimeout(() => {
+                                if (voiceAssistantActive && !processingVoice) {
+                                    startListening();
+                                }
+                            }, 500); // Breve pausa antes de volver a escuchar
+
+                            resolve();
+                        };
+
+                        responseAudio.onerror = () => {
+                            hideSpeakingIndicator();
+                            URL.revokeObjectURL(audioUrl);
+                            processingVoice = false; // <-- Asegúrate también aquí
+                            // Reiniciar escucha incluso si hay error
+                            setTimeout(() => {
+                                if (voiceAssistantActive && !processingVoice) {
+                                    startListening();
+                                }
+                            }, 500);
+
+                            resolve();
+                        };
+
+                        responseAudio.play();
+                    });
+                } else {
+                    // Fallback a Web Speech API si el backend falla
+                    return speakWithWebAPI(text);
+                }
+
+            } catch (error) {
+                console.error('Error reproduciendo respuesta:', error);
+                // Fallback a Web Speech API
+                return speakWithWebAPI(text);
+            }
+        }
+
+        // Fallback usando Web Speech API
+        function speakWithWebAPI(text) {
+            return new Promise((resolve) => {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'es-ES';
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.0;
+
+                    utterance.onend = () => {
+                        hideSpeakingIndicator();
+
+                        // Reiniciar escucha después de hablar
+                        setTimeout(() => {
+                            if (voiceAssistantActive && !processingVoice) {
+                                startListening();
+                            }
+                        }, 500);
+
+                        resolve();
+                    };
+
+                    utterance.onerror = () => {
+                        hideSpeakingIndicator();
+
+                        // Reiniciar escucha incluso si hay error
+                        setTimeout(() => {
+                            if (voiceAssistantActive && !processingVoice) {
+                                startListening();
+                            }
+                        }, 500);
+
+                        resolve();
+                    };
+
+                    speechSynthesis.speak(utterance);
+                } else {
+                    hideSpeakingIndicator();
+
+                    // Reiniciar escucha si no hay TTS disponible
+                    setTimeout(() => {
+                        if (voiceAssistantActive && !processingVoice) {
+                            startListening();
+                        }
+                    }, 500);
+
+                    resolve();
+                }
+            });
+        }
+        // Funciones de UI para voz
+        function showListeningIndicator() {
+            listeningIndicator.style.display = 'flex';
+            hideSpeakingIndicator();
+        }
+
+        function hideListeningIndicator() {
+            listeningIndicator.style.display = 'none';
+        }
+
+        function showSpeakingIndicator() {
+            speakingIndicator.style.display = 'flex';
+            hideListeningIndicator();
+        }
+
+        function hideSpeakingIndicator() {
+            speakingIndicator.style.display = 'none';
+        }
+
+        function showTranscriptionDisplay(text) {
+            transcriptionDisplay.style.display = 'block';
+            transcriptionDisplay.innerHTML = `<strong>Escuchado:</strong> ${text}`;
+        }
+
+        function updateTranscriptionDisplay(text) {
+            if (transcriptionDisplay.style.display !== 'none') {
+                transcriptionDisplay.innerHTML = `<strong>Escuchando:</strong> ${text}`;
+            }
+        }
+
+        function hideTranscriptionDisplay() {
+            transcriptionDisplay.style.display = 'none';
+        }
+
+        // Listeners para botones existentes
+
+        sendChatBtn.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+
+        // Listener para asistente de voz
+        toggleVoiceBtn.addEventListener('click', toggleVoiceAssistant);
+
+
+
+        window.addEventListener('beforeunload', () => {
+            stopRealtimeDetection();
+            stopVoiceAssistant();
+            if (stream) stream.getTracks().forEach(t => t.stop());
+        });
+
+        // Detener asistente de voz si se pierde el foco
+        window.addEventListener('blur', () => {
+            if (voiceAssistantActive) {
+                stopVoiceAssistant();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1️⃣ Arranca el asistente de voz si está disponible
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                setTimeout(() => { startVoiceAssistant(); }, 1000);
+            } else {
+                toggleVoiceBtn.disabled = true;
+                toggleVoiceBtn.textContent = '🎤 No soportado';
+                toggleVoiceBtn.title = 'Reconocimiento de voz no soportado en este navegador';
+            }
+
+            // 2️⃣ Inicia el login facial: se repetirá hasta que userRecognized = true
+            faceInterval = setInterval(tryLogin, 2000);
+            tryLogin(); // intento inmediato
+
+           // Iniciar detección en tiempo real
+           startRealtimeDetection();
+        });
+
+        window.addEventListener('beforeunload', () => {
+            // Para ambos bucles
+            clearInterval(faceInterval);
+            clearInterval(artInterval);
+            // Detén el asistente de voz si existe
+            if (typeof stopVoiceAssistant === 'function') stopVoiceAssistant();
+        });
+    </script>
+</body>
+
+</html>
