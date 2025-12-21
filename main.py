@@ -35,7 +35,7 @@ speech_client = speech.SpeechClient(credentials=creds)
 tts_client = texttospeech.TextToSpeechClient(credentials=creds)
 
 # ————— Configuración Gemini —————
-GEMINI_API_KEY = "AIzaSyDLzfantGOW9oWjqzxz-FAB1xunTxTxvLI"
+GEMINI_API_KEY = "**clave**"
 GEMINI_MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
 
 logging.basicConfig(level=logging.INFO)
@@ -803,4 +803,5 @@ async def text_to_speech_endpoint(text: str):
         logger.error(f"Error en text-to-speech endpoint: {type(e).__name__}: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
+
         raise HTTPException(500, f"Error generando audio: {str(e)}")
